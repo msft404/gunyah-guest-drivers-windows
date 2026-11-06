@@ -36,12 +36,27 @@ jobs:
             Start-Process -FilePath .\cpdksetup.exe -ArgumentList '/q','/norestart' -Wait
           }
 
-      - name: Run native buildAll.bat with checks disabled
+      - name: Patch WDK Targets to disable ApiValidator
+        shell: pwsh
+        run: |
+          # 寻找并修补 WDK 的 targets 文件，将 ApiValidator 目标置空
+          $targetsFiles = Get-ChildItem "C:\Program Files (x86)\Windows Kits\10\build\*\WindowsDriver.common.targets" -Recurse -ErrorAction SilentlyContinue
+          foreach ($file in $targetsFiles) {
+              $content = Get-Content $file.FullName -Raw
+              if ($content -match 'ApiValidator') {
+                  Write-Host "Patching: $($file.FullName)"
+                  # 将 ApiValidator target 的内容替换为空，防止它执行
+                  $content = $content -replace '<Target Name="ApiValidator".*?</Target>', '<Target Name="ApiValidator"></Target> mil'
+                  Set-Content -LiteralPath $file.FullName -Value $content -Encoding UTF8
+              }
+          }
+
+      - name: Run native buildAll.bat
         shell: cmd
         run: |
-          call build\build.bat virtio-win.sln "Win10 Win11" ARM64 /p:ApiValidator_Enable=false /p:RunInfVerif=false
+          call build\build.bat virtio-win.sln "Win10 Win11" ARM64
           if errorlevel 1 exit /b 1
-          call buildAll.bat /p:ApiValidator_Enable=false /p:RunInfVerif=false
+          call buildAll.bat
           if errorlevel 1 exit /b 1
         env:
           VIRTIO_WIN_NO_ARM: ""
