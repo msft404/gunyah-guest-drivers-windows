@@ -100,8 +100,11 @@ jobs:
           $failed = @()
           foreach ($j in $jobs) {
               Write-Host "::group::build $($j.p) [$($j.c)|$($j.plat)]"
-              # 修复点：直接调用 msbuild 避免 PowerShell 符号解析错误
-              msbuild $j.p /p:Configuration="$($j.c)" /p:Platform="$($j.plat)" @common
+              
+              # 安全调用，防止 GitHub Actions 解析器向 msbuild 后方注入代码引发括号不匹配
+              $msbuildArgs = @($j.p, "/p:Configuration=$($j.c)", "/p:Platform=$($j.plat)") + $common
+              & msbuild @msbuildArgs
+              
               if ($LASTEXITCODE -ne 0) {
                   $failed += $j.p
               }
